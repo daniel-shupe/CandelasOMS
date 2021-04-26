@@ -1,0 +1,178 @@
+﻿@page "/ticket"
+<!--Routing parameter-->
+@page "/ticket/{oid:int}"
+@attribute [Authorize(Roles = "Admin, Manager, User")]
+
+@using Syncfusion.Pdf
+@using Syncfusion.Pdf.Graphics
+@using System.IO
+@using Microsoft.Extensions.Configuration
+
+@inject IDataAccess _data
+@inject IConfiguration _config
+@inject Microsoft.JSInterop.IJSRuntime JS
+@inject IJSRuntime js
+
+<h3>Ticket</h3>
+<div class="container">
+    <div class="card">
+        @if (order == null)
+        {
+            <p>
+                Loading...
+            </p>
+        }
+        else
+        {
+            <!--Display header for ticket-->
+            <div class="card-header" style="color:white; background-color:#309b57">
+                Order #: @o.Id <span class="float-right">Order placed: @o.Created</span>
+                <p><span class="font-weight-bold">@o.LastName, @o.FirstName</span><span class="float-right">Status: @o.Status</span></p>
+            </div>
+
+        }
+        @if (ticketlines == null)
+        {
+            <p>
+                Loading...
+            </p>
+        }
+        else
+        {
+            <div class="card-body">
+                @foreach (var t in ticketlines)
+                {
+                    <!--Display products on ticket-->
+                    if (t.Quantity > 0)
+                    {
+                        <p>@t.Product (@t.Quantity @@ @t.Price.ToString("C")) <span class="float-right">@t.Cost.ToString("C")</span></p>
+                    }
+                }
+            </div>
+        }
+        <div class="card-footer" style="background-color:#8a0808; color:white; text-align:right;">
+            <p class="float-right font-weight-bold">
+                Subtotal: @subTotal.ToString("C")<br />
+                Sales Tax (5.3%): @tax.ToString("C")<br />
+                Total: @o.Cost.ToString("C")
+            </p>
+        </div>
+    </div>
+</div>
+<div class="container">
+    @switch (o.Status_Id)
+    {
+        case 1:
+            <button class="btn btn-success" @onclick="(() => UpdateStatus())">Acknowledge Order</button>
+            break;
+        case 2:
+            <button class="btn btn-success" @onclick="(() => UpdateStatus())">Prepare Order</button>
+            break;
+        case 3:
+            <button class="btn btn-success" @onclick="(() => UpdateStatus())">Order Ready For Pickup</button>
+            break;
+        case 4:
+            <button class="btn btn-success" @onclick="(() => UpdateStatus())">Complete Order</button>
+            break;
+    }
+    @if (o.Status_Id != 5 && o.Status_Id != 6)
+    {
+        <button class="btn btn-danger" @onclick="(() => CancelOrder())">Cancel Order</button>
+    }
+    @if (o.Status_Id != 6) 
+    {
+        <span class="float-right"><button class="btn btn-success" @onclick="(() => PrintTicket())">Print Ticket</button></span>
+    }
+    
+</div>
+
+@code {
+        List<Order> order;
+        List<TicketLine> ticketlines;
+        Order o;
+        float subTotal;
+        float _TAX = .053F;
+        float tax;
+
+        [Parameter]
+        public int oid { get; set; }
+
+    protected override async Task OnInitializedAsync()
+    {
+        string sql = "select o.order_id as Id, op.cost as Cost, p.name as Product, op.quantity as Quantity, p.price as Price from orders o join order_products op on o.order_id = op.order_id join products p on op.product_id = p.product_id where o.order_id=@id;";
+        ticketlines = await _data.LoadData<TicketLine, dynamic>(sql, new { @id = oid }, _config.GetConnectionString("OMS"));
+        sql = "select o.order_id as Id, a.account_id, a.first_name as FirstName, a.last_name as LastName, o.total as Cost, os.order_status_id as Status_Id, os.name as Status, o.date as Created, o.last_updated as Updated from Orders o join accounts a on a.account_id = o.account_id join order_status os on os.order_status_id = o.order_status_id where o.order_id = @id;";
+        order = await _data.LoadData<Order, dynamic>(sql, new { @id = oid }, _config.GetConnectionString("OMS"));
+        o = order.First();
+        subTotal = 0;
+        foreach (var tl in ticketlines)
+        {
+            subTotal += tl.Cost;
+        }
+        tax = subTotal * _TAX;
+    }
+
+    private async Task UpdateStatus()
+    {
+        string sql = "update orders set order_status_id = @osid, last_updated = @time where order_id = @oid";
+        await _data.SaveData(sql, new { osid = o.Status_Id + 1, time = DateTime.Now, oid = o.Id }, _config.GetConnectionString("OMS"));
+
+        if (o.Status_Id == 1)
+        {
+            await PrintTicket();
+        }
+        await OnInitializedAsync();
+    }
+
+    private async Task CancelOrder()
+    {
+        bool confirmed = await js.InvokeAsync<bool>("confirm", "Are you sure you want to cancel this order? (This can not be undone!)");
+        if (confirmed)
+        {
+            string sql = "update orders set order_status_id = @cid, last_updated = @time where order_id = @oid";
+            await _data.SaveData(sql, new { cid = 6, time = DateTime.Now, oid = o.Id }, _config.GetConnectionString("OMS"));
+        }
+
+        await OnInitializedAsync();
+    }
+
+    private async Task PrintTicket()
+    {
+        PdfDocument document = new PdfDocument();
+
+        PdfPage page = document.Pages.Add();
+
+        PdfGraphics graphics = page.Graphics;
+
+        PdfFont font = new PdfStandardFont(PdfFontFamily.TimesRoman, 20);
+        PdfFont font2 = new PdfStandardFont(PdfFontFamily.TimesRoman, 16);
+
+        graphics.DrawString("Candela's Pizzeria & Ristorante Italiano", font, PdfBrushes.Red, new Syncfusion.Drawing.PointF(0, 0));
+        graphics.DrawString("Order#: " + o.Id + " - Submitted at:" + o.Created, font2, PdfBrushes.Green, new Syncfusion.Drawing.PointF(10, 30));
+        graphics.DrawString("Customer: " + o.LastName + ", " + o.FirstName, font2, PdfBrushes.Green, new Syncfusion.Drawing.PointF(10, 60));
+        //graphics.DrawLine(PdfBrushes.)
+        float y = 90;
+        foreach (var p in ticketlines)
+        {
+            if (p.Quantity > 0)
+            {
+                graphics.DrawString(p.Product + "  -  Qty: " + p.Quantity + " @ " + p.Price.ToString("C") + "    ... " + p.Cost.ToString("C"), font2, PdfBrushes.Black, new Syncfusion.Drawing.PointF(10, y));
+                y += 30;
+            }
+        }
+        y += 20;
+        graphics.DrawString("Subtotal: " + subTotal.ToString("C"), font2, PdfBrushes.Green, new Syncfusion.Drawing.PointF(320, y));
+        y += 30;
+        graphics.DrawString("+ Tax: " + tax.ToString("C"), font2, PdfBrushes.Green, new Syncfusion.Drawing.PointF(320, y));
+        y += 30;
+        graphics.DrawString("Total: " + o.Cost.ToString("C"), font2, PdfBrushes.Green, new Syncfusion.Drawing.PointF(320, y));
+
+
+        MemoryStream stream = new MemoryStream();
+
+        document.Save(stream);
+        document.Close(true);
+
+        await JS.SaveAs("Ticket_" + o.Id + "_" + DateTime.Now.ToString() + ".pdf", stream.ToArray());
+    }
+}

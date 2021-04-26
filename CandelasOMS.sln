@@ -1,0 +1,34 @@
+﻿
+Microsoft Visual Studio Solution File, Format Version 12.00
+# Visual Studio Version 16
+VisualStudioVersion = 16.0.30413.136
+MinimumVisualStudioVersion = 10.0.40219.1
+Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "CandelasOMS", "CandelasOMS.csproj", "{8026F003-610B-435F-9CDC-5B9FBFE5DEF2}"
+	ProjectSection(ProjectDependencies) = postProject
+		{B6FD5860-4090-456A-B64C-14AD75702D97} = {B6FD5860-4090-456A-B64C-14AD75702D97}
+	EndProjectSection
+EndProject
+Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "DataLibrary", "..\DataAccess\DataLibrary.csproj", "{B6FD5860-4090-456A-B64C-14AD75702D97}"
+EndProject
+Global
+	GlobalSection(SolutionConfigurationPlatforms) = preSolution
+		Debug|Any CPU = Debug|Any CPU
+		Release|Any CPU = Release|Any CPU
+	EndGlobalSection
+	GlobalSection(ProjectConfigurationPlatforms) = postSolution
+		{8026F003-610B-435F-9CDC-5B9FBFE5DEF2}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{8026F003-610B-435F-9CDC-5B9FBFE5DEF2}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{8026F003-610B-435F-9CDC-5B9FBFE5DEF2}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{8026F003-610B-435F-9CDC-5B9FBFE5DEF2}.Release|Any CPU.Build.0 = Release|Any CPU
+		{B6FD5860-4090-456A-B64C-14AD75702D97}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{B6FD5860-4090-456A-B64C-14AD75702D97}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{B6FD5860-4090-456A-B64C-14AD75702D97}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{B6FD5860-4090-456A-B64C-14AD75702D97}.Release|Any CPU.Build.0 = Release|Any CPU
+	EndGlobalSection
+	GlobalSection(SolutionProperties) = preSolution
+		HideSolutionNode = FALSE
+	EndGlobalSection
+	GlobalSection(ExtensibilityGlobals) = postSolution
+		SolutionGuid = {F44C977C-C7E6-433E-8E27-F8FC2308EAE1}
+	EndGlobalSection
+EndGlobal

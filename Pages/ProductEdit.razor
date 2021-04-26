@@ -1,0 +1,96 @@
+﻿@page "/product"
+@page "/product/{pid:int}"
+<!---attribute [Authorize(Roles = "Admin")]-->
+@using Microsoft.Extensions.Configuration
+@inject IDataAccess _data
+@inject IConfiguration _config
+@inject NavigationManager NavigationManager
+@inject IJSRuntime js 
+
+<h3>Product Editor</h3>
+<div class="container">
+    <EditForm Model="@product" OnValidSubmit="@HandleValidSubmit">
+        <DataAnnotationsValidator />
+        <ValidationSummary />
+        <div class="form-row">
+            <label for="name" class="col-sm-2 col-form-label">Name:</label>
+            <div class="col-sm-10">
+                <InputText id="name" class="form-control" @bind-Value="product.Name" /><br/>
+            </div>
+        </div>
+        <div class="form-row">
+            <label for="desc" class="col-sm-2 col-form-label">Description:</label>
+            <div class="col-sm-10">
+                <InputTextArea id="desc" class="form-control" @bind-Value="product.Description" /><br />
+            </div>
+        </div>
+        <div class="form-row">
+            <label for="price" class="col-sm-2 col-form-label">Price:</label>
+            <div class="col-sm-10">
+                <InputNumber id="price" class="form-control" @bind-Value="product.Price" /><br />
+            </div>
+        </div>
+        <div class="form-row">
+            <label for="type" class="col-sm-2 col-form-label">Category:</label>
+            <div class="col-sm-10">
+                <InputSelect class="form-control" @bind-Value="product.ProductTypeId"><br />
+                    @foreach (var pt in productTypes)
+                    {
+                        <option value=@pt.ProductTypeId>@pt.Name</option>
+                    }
+                </InputSelect><hr/>
+            </div>
+        </div>
+        <button class="btn btn-block btn-success" id="submit">Submit</button>
+    </EditForm>
+    <button class="btn btn-block btn-danger" @onclick="@(()=>CancelAction())">Cancel</button>
+</div>
+@code {
+    Product product = new Product();
+    List<ProductType> productTypes;
+    [Parameter]
+    public int pid { get; set; }
+
+    protected override async Task OnInitializedAsync()
+    {
+        string sql = "select product_type_id as ProductTypeId, name as Name from product_types;";
+        productTypes = await _data.LoadData<ProductType, dynamic>(sql, new { }, _config.GetConnectionString("OMS"));
+        if (pid > 0)
+        {
+            List<Product> products;
+            sql = "select p.product_id as Id, p.name as Name, p.description as Description, p.price as Price, p.product_type_id as ProductTypeID, pt.name as ProductTypeName from products p join product_types pt on pt.product_type_id = p.product_type_id where p.product_id = @id;";
+            products = await _data.LoadData<Product, dynamic>(sql, new { id = pid }, _config.GetConnectionString("OMS"));
+            product = products.First();
+        }
+
+    }
+
+    private async Task HandleValidSubmit()
+    {
+        string sql;
+        product.ProductTypeId = Int32.Parse(product.ProductTypeName);
+
+        if (pid > 0)
+        {
+            sql = "Update products set name= @name, description = @desc, price = @price, product_type_id = @ptid where product_id = @id;";
+            await _data.SaveData(sql, new { name = product.Name, desc = product.Description, price = product.Price, ptid = product.ProductTypeId, id = pid}, _config.GetConnectionString("OMS"));
+        }
+        else
+        {
+            sql = "insert into products (name, description, price, product_type_id) values (@name, @desc, @price, @ptid);";
+            await _data.SaveData(sql, new { name = product.Name, desc = product.Description, price = product.Price, ptid = product.ProductTypeId}, _config.GetConnectionString("OMS"));
+        }
+        NavigationManager.NavigateTo("products");
+    }
+
+    private async Task CancelAction()
+    {
+        bool confirm = await js.InvokeAsync<bool>("confirm", "Are you sure you want to cancel product editing? (This will return you to the Product Management page.)");
+        if (confirm)
+        {
+            NavigationManager.NavigateTo("products");
+        }
+    }
+
+
+}

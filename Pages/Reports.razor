@@ -1,0 +1,63 @@
+﻿@page "/reports"
+@attribute [Authorize(Roles = "Admin, Manager")]
+@using Syncfusion.Pdf
+@using Syncfusion.Pdf.Graphics
+@using System.IO
+@using Microsoft.Extensions.Configuration
+@inject Microsoft.JSInterop.IJSRuntime JS 
+@inject IDataAccess _data
+@inject IConfiguration _config  
+
+<h3>Reports</h3>
+
+<div class="container">
+    <EditForm Model="@search" OnValidSubmit="@HandleValidSubmit">
+        <div class="form-group row">
+            <label for="begin" class="col-sm-2 col-form-label">Start Date: </label>
+            <div class="col-sm-10">
+                <InputDate id="begin" class="form-control" @bind-Value="search.StartDate" />
+            </div>
+        </div>
+        <div class="form-group row">
+            <label for="end" class="col-sm-2 col-form-label">End Date: </label>
+            <div class="col-sm-10">
+                <InputDate id="end" class="form-control" @bind-Value="search.EndDate" />
+            </div>
+        </div>
+        <button class="btn btn-block btn-success" id="submit">Generate Report</button>
+    </EditForm>  
+</div>
+
+@code {
+    Report search = new Report();
+    List<Report> report;
+    private async Task HandleValidSubmit()
+    {
+
+        string sql = "select count(o.order_id) as OrderCount, sum(o.total) as OrderSum, avg(o.total) as OrderAvg from orders o where o.order_status_id = 5 and o.date between @date1 and @date2;";
+        report = await _data.LoadData<Report, dynamic>(sql, new { date1 = search.StartDate, date2 = search.EndDate }, _config.GetConnectionString("OMS"));
+        Report row = report.First();
+
+        PdfDocument document = new PdfDocument();
+
+        PdfPage page = document.Pages.Add();
+
+        PdfGraphics graphics = page.Graphics;
+
+        PdfFont font = new PdfStandardFont(PdfFontFamily.TimesRoman, 20);
+        PdfFont font2 = new PdfStandardFont(PdfFontFamily.TimesRoman, 16);
+
+        graphics.DrawString("Candela's Pizzeria & Ristorante Italiano", font, PdfBrushes.Black, new Syncfusion.Drawing.PointF(0, 0));
+        graphics.DrawString("Order Report: " + search.StartDate + " - " + search.EndDate, font2, PdfBrushes.Red, new Syncfusion.Drawing.PointF(10, 30));
+        graphics.DrawString("Orders completed: " + row.OrderCount, font2, PdfBrushes.Black, new Syncfusion.Drawing.PointF(10, 60));
+        graphics.DrawString("Average Order size: " + row.OrderAvg.ToString("C"), font2, PdfBrushes.Black, new Syncfusion.Drawing.PointF(10, 90));
+        graphics.DrawString("Total Order revenue: " + row.OrderSum.ToString("C"), font2, PdfBrushes.Black, new Syncfusion.Drawing.PointF(10, 120));
+
+        MemoryStream stream = new MemoryStream();
+
+        document.Save(stream);
+        document.Close(true);
+
+        await JS.SaveAs("OMSReport_" + DateTime.Now.ToString() + ".pdf", stream.ToArray());
+    }
+}

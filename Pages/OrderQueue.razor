@@ -1,0 +1,68 @@
+﻿@page "/orderqueue"
+@attribute [Authorize(Roles = "Admin, Manager, User")]
+
+@using Microsoft.Extensions.Configuration
+@inject IDataAccess _data
+@inject IConfiguration _config
+@inject NavigationManager NavigationManager
+
+<h3>Order Queue</h3>
+<div style="position:fixed; float:right;">
+    <button class="btn btn-primary oi oi-reload float-right" @onclick="@OnInitializedAsync"></button><hr />
+</div>
+<div class="container">
+    <p>
+        <input type="text" @bind-value="@search" />
+        <input type="button" value="search" @onclick="@SearchOrders" />
+    </p><hr />
+</div>
+@if (orders == null)
+{
+    <p>
+        Loading...
+    </p>
+}
+else
+{
+    @foreach (var o in orders)
+    {
+        <div class="container">
+            <div class="card">
+                <div class="card-header" style="color:white; background-color:#309b57;">
+                    <div class="card-title font-weight-bold">Order #: @o.Id <span class="float-right"> Placed on @o.Created</span></div>
+                </div>
+                <div class="card-body">
+                    Order for @o.LastName, @o.FirstName <span class="float-right">$ @o.Cost</span>
+                </div>
+                <div class="card-footer" style="color:white; background-color:#8a0808;">
+                    <p>Current Status: @o.Status</p>
+                    <button class="btn btn-block btn-success" @onclick="@(() => ViewOrder(@o.Id))">View Order</button>
+                </div>
+            </div>
+        </div>
+        <br />
+    }
+}
+@code {
+    List<Order> orders;
+    string search;
+
+    private void ViewOrder(int id)
+    {
+        string url = "ticket/" + id.ToString();
+        NavigationManager.NavigateTo(url);
+    }
+
+    protected override async Task OnInitializedAsync()
+    {
+        string sql = "select o.order_id as Id, a.account_id, a.first_name as FirstName, a.last_name as LastName, o.total as Cost, os.name as Status, o.date as Created, o.last_updated as Updated from Orders o join accounts a on a.account_id = o.account_id join order_status os on os.order_status_id = o.order_status_id where o.order_status_id < 5 order by date asc;";
+        orders = await _data.LoadData<Order, dynamic>(sql, new { }, _config.GetConnectionString("OMS"));
+    }
+
+    private async Task SearchOrders()
+    {
+        string sql = "select o.order_id as Id, a.account_id, a.first_name as FirstName, a.last_name as LastName, o.total as Cost, os.name as Status, o.date as Created, o.last_updated as Updated from Orders o join accounts a on a.account_id = o.account_id join order_status os on os.order_status_id = o.order_status_id where (o.order_status_id < 5 and (a.last_name=@ln or a.first_name=@fn or a.email=@em)) order by date asc;";
+
+        orders = await _data.LoadData<Order, dynamic>(sql, new { fn = @search, ln = @search, em = @search }, _config.GetConnectionString("OMS"));
+    }
+}

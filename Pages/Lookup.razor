@@ -1,0 +1,150 @@
+﻿@page "/lookup"
+@attribute [Authorize(Roles ="Admin, Manager, User")]
+@using Microsoft.Extensions.Configuration
+@using MySql.Data.MySqlClient
+@using Dapper
+@using DapperQueryBuilder 
+@inject IDataAccess _data
+@inject IConfiguration _config
+@inject NavigationManager NavigationManager
+<h3>Lookup</h3>
+
+<div class="container">
+    <EditForm Model="@search" OnValidSubmit="@HandleValidSubmit">
+        <DataAnnotationsValidator />
+        <ValidationSummary />
+        <div class="form-group row">
+            <label for="oid" class="col-sm-2 col-form-label">Order #: </label>
+            <div class="col-sm-10">
+                <InputNumber id="oid" class="form-control" placeholder="1" @bind-Value="search.Id" />
+            </div>
+        </div>
+        <div class="form-group row">
+            <label for="date" class="col-sm-2 col-form-label">Creation Date: </label>
+            <div class="col-sm-10">
+                <InputDate id="date" class="form-control" @bind-Value="@search.Created" />
+            </div>
+        </div>
+        <div class="form-group row">
+            <label for="email" class="col-sm-2 col-form-label">Email: </label>
+            <div class="col-sm-10">
+                <input type="email" id="email" class="form-control" @bind-value="search.Email" />
+            </div>
+        </div>
+        <div class="form-group row">
+            <label for="phone" class="col-sm-2 col-form-label">Phone: </label>
+            <div class="col-sm-10">
+                <input type="tel" id="phone" class="form-control" @bind-value="search.Telephone" />
+            </div>
+        </div>
+        <div class="form-group row">
+            <label for="firstName" class="col-sm-2 col-form-label">FirstName: </label>
+            <div class="col-sm-10">
+                <InputText id="firstName" class="form-control" @bind-Value="search.FirstName" />
+            </div>
+        </div>
+        <div class="form-group row">
+            <label for="lastName" class="col-sm-2 col-form-label">Last Name: </label>
+            <div class="col-sm-10">
+                <InputText id="lastName" class="form-control" @bind-Value="search.LastName" />
+            </div>
+        </div>
+        <div class="form-group row">
+            <label for="status" class="col-sm-2 col-form-label">Return Completed Orders?: </label>
+            <div class="col-sm-10">
+                <InputCheckbox id="status" class="form-control" @bind-Value="search.Status" />
+            </div>
+        </div>
+        <button class="btn btn-block btn-success" id="submit">Search</button>
+    </EditForm>
+</div>
+<hr />
+@if (orders == null || orders.Count() == 0)
+{
+    <p> No results.</p>
+}
+else
+{
+    @foreach (var o in orders)
+    {
+        <div class="container">
+            <div class="card">
+                <div class="card-header">
+                    <div class="card-title font-weight-bold">Order #: @o.Id <span class="float-right"> Placed on @o.Created</span></div>
+                </div>
+                <div class="card-body">
+                    Order for @o.LastName, @o.FirstName - @o.Telephone<span class="float-right">$ @o.Cost</span>
+                </div>
+                <div class="card-footer">
+                    <p>Current Status: @o.Status</p>
+                    <button class="btn btn-block btn-success" @onclick="@(() => ViewOrder(@o.Id))">View Order</button>
+                </div>
+            </div>
+        </div>
+        <br />
+    }
+}
+@code {
+    private Search search = new Search();
+    IEnumerable<Order> orders;
+
+    private async Task HandleValidSubmit()
+    {
+        string cs = _config.GetConnectionString("OMS");
+        FormattableString sql = $@"select o.order_id as Id, a.account_id, a.first_name as FirstName, a.last_name as LastName, a.phone as Telephone, o.total as Cost, os.name as Status, o.date as Created, o.last_updated as Updated from Orders o join accounts a on a.account_id = o.account_id join order_status os on os.order_status_id = o.order_status_id /**where**/ order by o.date desc;";
+        var conn = new MySqlConnection(cs);
+        var q = conn.QueryBuilder(sql);
+        if (search.FirstName != null && search.FirstName != "")
+        {
+            q.Where($@"a.first_name LIKE {search.FirstName}");
+        }
+        if (search.LastName != null && search.LastName != "")
+        {
+            q.Where($@"a.last_name LIKE {search.LastName}");
+        }
+        if (search.Email != null && search.Email != "")
+        {
+            q.Where($@"a.email LIKE {search.Email}");
+        }
+        if (search.Telephone != null && search.Telephone != "")
+        {
+            q.Where($@"a.phone LIKE {search.Telephone.Replace("-",String.Empty)}");
+        }
+        if ( search.Id > 0)
+        {
+            q.Where($@"a.order_id = {search.Id}");
+        }
+        if (search.Created != null && search.Created.Year > 2019)
+        {
+            q.Where($@"o.date BETWEEN {search.Created} AND {search.Created.AddDays(1)}");
+        }
+        if (!search.Status)
+        {
+            q.Where($@"o.order_status_id < {5}");
+        }
+        string test = q.Sql;
+
+        orders = await q.QueryAsync<Order>();
+
+        foreach(var o in orders)
+        {
+            try
+            {
+                string temp = o.Telephone.Insert(3, "-");
+                temp = temp.Insert(7, "-");
+                o.Telephone = temp;
+            }
+            catch
+            {
+                o.Telephone = "###-###-####";
+            }
+
+        }
+    }
+
+    private void ViewOrder(int id)
+    {
+        string url = "ticket/" + id.ToString();
+        NavigationManager.NavigateTo(url);
+    }
+}
